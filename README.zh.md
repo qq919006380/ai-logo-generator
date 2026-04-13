@@ -117,4 +117,4 @@ Claude 读取 ~/.config/ailogogenerator.online/auth.json
 
 ## 开源协议
 
-[MIT](./LICENSE)
+[MIT-0（MIT No Attribution）](./LICENSE)

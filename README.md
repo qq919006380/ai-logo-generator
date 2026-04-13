@@ -117,4 +117,4 @@ Each logo generation costs 4 credits. New accounts receive bonus credits on regi
 
 ## License
 
-[MIT](./LICENSE)
+[MIT-0 (MIT No Attribution)](./LICENSE)
