@@ -1,5 +1,14 @@
 ---
 name: ai-logo-generator
+version: 1.0.1
+license: MIT
+author: baichaowei
+tags:
+  - logo
+  - branding
+  - design
+  - image-generation
+  - claude-code
 description: "Generate professional AI logos using ailogogenerator.online. Use this skill whenever the user wants to create a logo, brand icon, app icon, favicon, or any visual identity asset — even if they don't explicitly mention 'logo generator'. Covers requests like 'make me a logo', 'design an icon for my app', 'I need a brand mark', or 'generate a logo for my startup'."
 ---
 
@@ -23,7 +32,7 @@ If the file doesn't exist or the token is missing/empty, run the login script:
 node <SKILL_DIRECTORY>/login.mjs
 ```
 
-Replace `<SKILL_DIRECTORY>` with the actual directory where this skill.md lives. You can find it by checking `$CLAUDE_SKILL_DIR` or resolving the path relative to this file.
+Replace `<SKILL_DIRECTORY>` with the actual directory where this `SKILL.md` lives. You can find it by checking `$CLAUDE_SKILL_DIR` or resolving the path relative to this file.
 
 After the script exits, re-read auth.json to get the token. If it's still missing, tell the user the login failed and ask them to try again.
 
@@ -143,6 +152,12 @@ You: Generating your logo for Stackly...
      Generating... (9s elapsed)
      Done! Saved to ./logo-stackly.png
 ```
+
+## Examples
+
+- "Create a minimalist logo for my fintech startup called LedgerLeaf in dark green and cream."
+- "Generate three icon-only logo concepts for a coffee brand with a warm vintage vibe."
+- "Make a transparent app icon for a fitness tracker named PulseIQ using blue and black."
 
 ## Important notes
 
