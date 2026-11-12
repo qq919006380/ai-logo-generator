@@ -41,13 +41,13 @@ Claude: [自动加载 ai-logo-generator skill 并生成]
 
 ## 账号认证
 
-首次使用时，skill 会打开浏览器，引导你在 ailogogenerator.online 登录或注册。认证成功后，token 会保存在：
+首次使用时，skill 会在浏览器里打开 ailogogenerator.online/connect 并显示一个短码。需要的话先登录或注册，确认短码一致后点「Approve」即可，不需要 API Key。token 会保存在：
 
 ```
 ~/.config/ailogogenerator.online/auth.json
 ```
 
-后续使用直接读取缓存 token，无需再次打开浏览器。如需退出登录或切换账号，删除该文件后重新运行 skill 即可。
+后续使用直接读取缓存 token，无需再次打开浏览器。如需退出登录或切换账号，删除该文件后重新运行 skill 即可。已连接的 AI 工具可以在 [ailogogenerator.online/connect](https://ailogogenerator.online/connect/) 查看并逐个退出。
 
 ---
 
@@ -63,9 +63,9 @@ Claude 读取 ~/.config/ailogogenerator.online/auth.json
    /         \
   有           没有
   |              |
-  |         login.mjs 打开浏览器
-  |         捕获回调中的 ?token=
-  |         保存到 auth.json
+  |         login.mjs 在浏览器打开 /connect
+  |         你点「Approve」
+  |         token 保存到 auth.json
   |              |
   +------+-------+
          |
@@ -103,7 +103,7 @@ Claude 读取 ~/.config/ailogogenerator.online/auth.json
 
 ## 积分说明
 
-每次生成消耗 4 积分。新账号注册即赠送积分。如需充值请访问 [ailogogenerator.online](https://ailogogenerator.online)。
+每次生成消耗 4 积分，去背景 1 积分，生成失败自动退回。新账号注册即赠送积分。如需充值请访问 [ailogogenerator.online](https://ailogogenerator.online)。
 
 ---
 

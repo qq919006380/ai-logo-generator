@@ -1,30 +1,28 @@
 #!/usr/bin/env node
 /**
- * AI Logo Generator — CLI Login
- * Opens browser OAuth flow and saves token to ~/.config/ailogogenerator.online/auth.json
- * Zero external dependencies — uses only Node.js built-ins.
+ * AI Logo Generator — sign in for AI agents and scripts.
+ *
+ * Uses the device authorization flow (RFC 8628): prints a short code, opens
+ * https://ailogogenerator.online/connect/?user_code=… in the browser, and waits
+ * for the user to click Approve. The resulting token is saved to
+ * ~/.config/ailogogenerator.online/auth.json (mode 600).
+ *
+ * No local server, no API key. Zero dependencies (Node.js >= 18).
  */
 
-import http from "http";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { execSync, spawn } from "child_process";
+import { spawn } from "child_process";
 
+const BASE = "https://ailogogenerator.online";
+const CLIENT_ID = "agent-skill";
 const CONFIG_DIR = path.join(os.homedir(), ".config", "ailogogenerator.online");
 const AUTH_FILE = path.join(CONFIG_DIR, "auth.json");
-const CALLBACK_PORT = 19876;
-const CALLBACK_HOST = "127.0.0.1";
-const CALLBACK_URL = `http://${CALLBACK_HOST}:${CALLBACK_PORT}/callback`;
-const LOGIN_URL = `https://ailogogenerator.online/login?cli_redirect=${encodeURIComponent(CALLBACK_URL)}`;
-const TIMEOUT_MS = 120_000;
-
-// ── helpers ──────────────────────────────────────────────────────────────────
 
 function readAuth() {
   try {
-    const raw = fs.readFileSync(AUTH_FILE, "utf8");
-    return JSON.parse(raw);
+    return JSON.parse(fs.readFileSync(AUTH_FILE, "utf8"));
   } catch {
     return null;
   }
@@ -32,219 +30,87 @@ function readAuth() {
 
 function saveAuth(token, email) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  const data = {
-    token,
-    email: email || "",
-    loginAt: new Date().toISOString(),
-  };
+  const data = { token, email: email || "", loginAt: new Date().toISOString() };
   fs.writeFileSync(AUTH_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
   return data;
 }
 
 function openBrowser(url) {
-  const platform = process.platform;
+  const [cmd, args] =
+    process.platform === "darwin" ? ["open", [url]]
+    : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
+    : ["xdg-open", [url]];
   try {
-    if (platform === "darwin") {
-      execSync(`open "${url}"`, { stdio: "ignore" });
-    } else if (platform === "win32") {
-      // Windows: start command needs cmd /c
-      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-    } else {
-      // Linux / other Unix
-      spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-    }
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => {}); // no opener on this machine: the URL is printed below
+    child.unref();
   } catch {
-    // Silently ignore — we already printed the URL below
+    // The URL is printed below; the user can open it by hand.
   }
 }
 
-function parseQuery(queryString) {
-  const params = {};
-  if (!queryString) return params;
-  for (const part of queryString.split("&")) {
-    const [k, v] = part.split("=");
-    if (k) params[decodeURIComponent(k)] = v ? decodeURIComponent(v) : "";
-  }
-  return params;
+async function post(pathname, body) {
+  const res = await fetch(`${BASE}${pathname}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json().catch(() => ({}));
 }
 
-const SUCCESS_HTML = (email) => `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Login successful — AI Logo Generator</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0d0e14;
-    color: #f0f0f5;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-  }
-  .card {
-    text-align: center;
-    padding: 2.5rem 3rem;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 1rem;
-    background: rgba(255,255,255,0.03);
-    max-width: 420px;
-    width: 90%;
-  }
-  .icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-  }
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    letter-spacing: -0.02em;
-  }
-  p {
-    color: rgba(240,240,245,0.55);
-    font-size: 0.9rem;
-    line-height: 1.6;
-  }
-  .email {
-    color: #a78bfa;
-    font-weight: 500;
-  }
-  .hint {
-    margin-top: 1.5rem;
-    font-size: 0.8rem;
-    color: rgba(240,240,245,0.3);
-  }
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="icon">&#10003;</div>
-  <h1>Login successful</h1>
-  <p>You're now authenticated${email ? ` as <span class="email">${email}</span>` : ""}.<br>You can close this tab and return to your terminal.</p>
-  <p class="hint">Token saved to ~/.config/ailogogenerator.online/auth.json</p>
-</div>
-</body>
-</html>`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ERROR_HTML = (msg) => `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Login failed — AI Logo Generator</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0d0e14;
-    color: #f0f0f5;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-  }
-  .card {
-    text-align: center;
-    padding: 2.5rem 3rem;
-    border: 1px solid rgba(255,80,80,0.2);
-    border-radius: 1rem;
-    background: rgba(255,80,80,0.05);
-    max-width: 420px;
-    width: 90%;
-  }
-  h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.5rem; color: #f87171; }
-  p { color: rgba(240,240,245,0.55); font-size: 0.9rem; }
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>Login failed</h1>
-  <p>${msg || "No token received. Please try again."}</p>
-</div>
-</body>
-</html>`;
-
-// ── main ──────────────────────────────────────────────────────────────────────
-
-// Check if already logged in
 const existing = readAuth();
-if (existing && existing.token) {
+if (existing?.token) {
   const who = existing.email ? ` (${existing.email})` : "";
   console.log(`Already logged in${who}. Token stored at:\n  ${AUTH_FILE}`);
   console.log("To re-login, delete that file and run this script again.");
   process.exit(0);
 }
 
-console.log("Opening browser for login...");
-console.log(`If your browser doesn't open automatically, visit:\n  ${LOGIN_URL}\n`);
-
-let server;
-let timeoutHandle;
-
-const cleanup = () => {
-  if (timeoutHandle) clearTimeout(timeoutHandle);
-  if (server && server.listening) {
-    server.close();
-  }
-};
-
-server = http.createServer((req, res) => {
-  const url = new URL(req.url, `http://${CALLBACK_HOST}`);
-
-  if (url.pathname !== "/callback") {
-    res.writeHead(404);
-    res.end("Not found");
-    return;
-  }
-
-  const params = parseQuery(url.search.slice(1));
-  const token = params.token;
-  const email = params.email || "";
-
-  if (!token) {
-    res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(ERROR_HTML("No token received from the server."));
-    cleanup();
-    console.error("Login failed: no token in callback.");
-    process.exit(1);
-    return;
-  }
-
-  const authData = saveAuth(token, email);
-
-  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-  res.end(SUCCESS_HTML(email));
-
-  cleanup();
-
-  const who = authData.email ? ` as ${authData.email}` : "";
-  console.log(`\nLogin successful${who}.`);
-  console.log(`Token saved to:\n  ${AUTH_FILE}`);
-  process.exit(0);
-});
-
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(
-      `Port ${CALLBACK_PORT} is already in use.\n` +
-      `Another login process may be running, or a previous one didn't clean up.\n` +
-      `Try: kill $(lsof -ti:${CALLBACK_PORT}) and run again.`
-    );
-  } else {
-    console.error("Server error:", err.message);
-  }
+const code = await post("/api/auth/device/code", { client_id: CLIENT_ID });
+if (!code.device_code) {
+  console.error(`Could not start login: ${code.error_description || code.error || "unknown error"}`);
   process.exit(1);
-});
+}
 
-server.listen(CALLBACK_PORT, CALLBACK_HOST, () => {
-  openBrowser(LOGIN_URL);
+const userCode = `${code.user_code.slice(0, 4)}-${code.user_code.slice(4)}`;
+console.log("Opening your browser to approve this login...");
+console.log(`If it doesn't open, visit:\n  ${code.verification_uri_complete}`);
+console.log(`Check that the page shows this code: ${userCode}\n`);
+openBrowser(code.verification_uri_complete);
 
-  timeoutHandle = setTimeout(() => {
-    console.error(`\nTimeout: no login received within ${TIMEOUT_MS / 1000}s.`);
-    cleanup();
+let interval = (code.interval || 5) * 1000;
+const deadline = Date.now() + (code.expires_in || 600) * 1000;
+
+while (Date.now() < deadline) {
+  await sleep(interval);
+  const result = await post("/api/auth/device/token", {
+    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    device_code: code.device_code,
+    client_id: CLIENT_ID,
+  });
+  if (result.access_token) {
+    const session = await fetch(`${BASE}/api/auth/get-session`, {
+      headers: { Authorization: `Bearer ${result.access_token}` },
+    }).then((r) => r.json()).catch(() => null);
+    const saved = saveAuth(result.access_token, session?.user?.email);
+    const who = saved.email ? ` as ${saved.email}` : "";
+    console.log(`Login successful${who}.\nToken saved to:\n  ${AUTH_FILE}`);
+    process.exit(0);
+  }
+  if (result.error === "authorization_pending") continue;
+  if (result.error === "slow_down") {
+    interval += 5000;
+    continue;
+  }
+  if (result.error === "access_denied") {
+    console.error("Login was cancelled in the browser.");
     process.exit(1);
-  }, TIMEOUT_MS);
-});
+  }
+  console.error(`Login failed: ${result.error_description || result.error || "unknown error"}`);
+  process.exit(1);
+}
+
+console.error("Timeout: the login link expired before it was approved. Run this script again.");
+process.exit(1);

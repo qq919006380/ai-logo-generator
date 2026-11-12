@@ -1,6 +1,6 @@
 ---
 name: ai-logo-generator
-version: 1.0.1
+version: 1.1.0
 license: MIT
 author: baichaowei
 tags:
@@ -34,7 +34,21 @@ node <SKILL_DIRECTORY>/login.mjs
 
 Replace `<SKILL_DIRECTORY>` with the actual directory where this `SKILL.md` lives. You can find it by checking `$CLAUDE_SKILL_DIR` or resolving the path relative to this file.
 
+The script prints a short code and opens `https://ailogogenerator.online/connect/?user_code=…` in the browser. Tell the user to check the code matches and click **Approve** (they log in first if needed). The script waits until they approve, then saves the token. There is no API key.
+
 After the script exits, re-read auth.json to get the token. If it's still missing, tell the user the login failed and ask them to try again.
+
+Before generating, check the balance:
+
+```
+GET https://ailogogenerator.online/api/ai/logo/quota
+Authorization: Bearer <token>
+```
+
+- `data.type == "authenticated"`: `data.balance` credits left, `data.costPerGeneration` per logo.
+- `data.type == "anonymous"`: the token is no longer valid. Delete auth.json and run `login.mjs` again.
+
+If the balance is below the cost, tell the user and link them to https://ailogogenerator.online/pricing.
 
 ## Step 2: Gather requirements
 
@@ -70,9 +84,12 @@ Authorization: Bearer <token>
     "withBackground": false,
     "shape": "square",
     "detail": "..."
-  }
+  },
+  "requestedFormat": "png"
 }
 ```
+
+`requestedFormat` is `png` (default) or `jpg`; jpg is never transparent. Optional `referenceImageUrl`: a public `https://` image to use as a style reference.
 
 Successful response:
 ```json
@@ -117,6 +134,8 @@ Response when done:
 }
 ```
 
+If `status` is `"failed"`, the credits were refunded automatically. If `data.reason == "content_rejected"`, the image model's content check refused the request: suggest rewording instead of retrying the same brief.
+
 Poll up to 60 times (3 minutes total). If it's still not done after that, tell the user the generation timed out and they can check the website.
 
 Show the user a progress indicator while polling — something like "Generating... (10s elapsed)" updated every few seconds.
@@ -127,6 +146,20 @@ Download the image from `imageUrl` to the current working directory. Use a descr
 
 Announce the saved path to the user.
 
+## Optional: remove the background (1 credit)
+
+For a logo generated with a background:
+
+```
+POST https://ailogogenerator.online/api/ai/logo/remove-bg
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{ "taskId": "<taskId of the logo>" }
+```
+
+It returns a new `taskId`; poll `/api/ai/logo/query` with it exactly as in Step 4.
+
 ## Error handling
 
 Handle these cases gracefully — don't show raw HTTP errors to the user:
@@ -135,11 +168,11 @@ Handle these cases gracefully — don't show raw HTTP errors to the user:
 
 - **402 Payment Required**: Insufficient credits. Tell the user: "You're out of credits. Visit https://ailogogenerator.online to top up and come back."
 
-- **429 Too Many Requests**: Daily limit reached. Tell the user: "You've hit the daily limit. Log in at https://ailogogenerator.online to get more credits or wait until tomorrow."
+- **`turnstile_failed` / `anonymous_limit`**: You are not signed in (the token expired or was signed out). Delete auth.json, run `login.mjs` again, then retry once.
 
 - **Network error**: Retry once after 2 seconds. If it fails again, report the error and suggest checking their internet connection.
 
-- **Generation failed** (status = "failed" in query response): Tell the user generation failed and offer to try again with adjusted parameters.
+- **Generation failed** (status = "failed" in query response): Credits are refunded automatically. If `reason` is `content_rejected`, suggest different wording; otherwise offer to try again with adjusted parameters.
 
 ## Example interaction
 
@@ -165,3 +198,5 @@ You: Generating your logo for Stackly...
 - If the user wants multiple variations, run the generate+poll cycle multiple times, saving each with a variant suffix
 - The API is HTTPS only; never downgrade to HTTP
 - After a successful 401 re-auth, retry the original request exactly once — if it fails again, stop and ask the user to re-login manually
+- Each generation spends the user's credits: say how many credits a batch will cost before running several
+- The user can see and sign out connected AI tools at https://ailogogenerator.online/connect/

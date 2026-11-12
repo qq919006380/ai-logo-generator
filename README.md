@@ -41,13 +41,13 @@ Claude: [loads ai-logo-generator skill automatically and generates]
 
 ## Authentication
 
-The first time you run the skill, it opens your browser to log in or register at ailogogenerator.online. After you authenticate, the token is stored at:
+The first time you run the skill, it opens ailogogenerator.online/connect in your browser and shows a short code. Log in (or register) if needed, check the code matches, and click **Approve**. No API key. The token is stored at:
 
 ```
 ~/.config/ailogogenerator.online/auth.json
 ```
 
-Subsequent runs use the cached token — no browser needed. To log out or switch accounts, delete that file and run the skill again.
+Subsequent runs use the cached token — no browser needed. To log out or switch accounts, delete that file and run the skill again. You can see and sign out connected AI tools at [ailogogenerator.online/connect](https://ailogogenerator.online/connect/).
 
 ---
 
@@ -63,9 +63,9 @@ Claude checks ~/.config/ailogogenerator.online/auth.json
    /          \
   Yes           No
   |              |
-  |         login.mjs opens browser
-  |         captures ?token= from callback
-  |         saves to auth.json
+  |         login.mjs opens /connect in browser
+  |         you click Approve
+  |         saves token to auth.json
   |              |
   +------+-------+
          |
@@ -103,7 +103,7 @@ Claude checks ~/.config/ailogogenerator.online/auth.json
 
 ## Credits
 
-Each logo generation costs 4 credits. New accounts receive bonus credits on registration. Top up at [ailogogenerator.online](https://ailogogenerator.online).
+Each logo generation costs 4 credits; removing a background costs 1. Failed generations are refunded automatically. New accounts receive bonus credits on registration. Top up at [ailogogenerator.online](https://ailogogenerator.online).
 
 ---
 
